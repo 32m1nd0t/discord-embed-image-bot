@@ -20,7 +20,11 @@ def keep_alive():
     t.start()
 
 
-# ------------------ [1. 인증 시스템 버튼 클래스 구역] ------------------
+# ------------------ [1. 인증 시스템 및 에페메럴 연동 구역] ------------------
+
+# ⭐️ [새로 추가된 라인] 유저가 버튼을 누른 상호작용(토큰)을 잠시 보관하는 저장소입니다.
+user_interactions = {}
+
 
 # 2단계: 손님 진입 후 에페메럴로 튀어나올 길드 인증 신청 버튼
 class GuestFollowUpView(discord.ui.View):
@@ -29,6 +33,9 @@ class GuestFollowUpView(discord.ui.View):
 
     @discord.ui.button(label="길드 인증 신청", style=discord.ButtonStyle.primary, custom_id="guild_auth_btn")
     async def guild_auth(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # ⭐️ 유저가 버튼을 누른 이 순간의 상호작용 객체를 저장합니다. (사진 올렸을 때 창을 바꾸기 위함)
+        user_interactions[interaction.user.id] = interaction
+
         # ⚠️ 중요: 관리자 알림 및 사진 로그가 찍힐 채널명을 정확히 적어주세요.
         admin_channel = discord.utils.get(interaction.guild.text_channels, name="⚙️관리자-인증방")
         
@@ -36,7 +43,7 @@ class GuestFollowUpView(discord.ui.View):
             admin_embed = discord.Embed(
                 title="🔔 신규 길드 인증 요청",
                 description=f"{interaction.user.mention} (`{interaction.user.name}`) 님이 길드 인증을 요청했습니다.\n"
-                            f"현재 유저에게 인증사진 업로드 안내가 전송되었습니다.",
+                            f"현재 유저가 사진 업로드를 진행 중입니다.",
                 color=0xe67e22
             )
             await admin_channel.send(embed=admin_embed)
@@ -44,18 +51,19 @@ class GuestFollowUpView(discord.ui.View):
         user_embed = discord.Embed(
             title="📸 길드원 인증사진 업로드 안내",
             description="우리 길드원이 맞는지 확인하기 위해 **인증사진**이 필요합니다.\n"
-                        "현재 이 채널에 그대로 사진을 올려주시면 관리자방으로 안전하게 전송됩니다!\n",
+                        "**지금 현재 이 채널에 그대로 사진을 올려주세요!**\n",
             color=0x3498db
         )
         user_embed.add_field(
             name="📌 업로드 방법", 
-            value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n"
-                  "2. 촬영한 **길드 가입 증명 사진**을 첨부하여 전송합니다.\n\n"
-                  "※ 사진이 전송되면 봇이 자동으로 수집하며, 채널 보호를 위해 원본 사진은 잠시 후 삭제됩니다.", 
+            value="1. 채팅창 왼쪽의 `+` 버튼을 누르고 사진을 전송합니다.\n"
+                  "2. 사진이 올라가면 봇이 감지하여 이 안내 창을 성공 메시지로 변경합니다.\n\n"
+                  "※ 채널 보안을 위해 유저님이 올리신 원본 사진은 즉시 삭제됩니다.", 
             inline=False
         )
         user_embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
 
+        # 유저 화면에 에페메럴 가이드라인 전송
         await interaction.response.send_message(embed=user_embed, ephemeral=True)
 
 
@@ -107,7 +115,7 @@ async def on_ready():
     bot.add_view(GuestFollowUpView())
 
 
-# 손님이 올린 인증사진을 감지해서 관리자방으로 배달하고, 유저에게만 에페메럴 메시지를 띄우는 시스템
+# ⭐️ [대폭 수정된 부분] 사진을 복사하고 유저의 에페메럴 가이드 창을 결과창으로 변환합니다.
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -121,7 +129,6 @@ async def on_message(message):
                     
                     admin_channel = discord.utils.get(message.guild.text_channels, name="⚙️관리자-인증방")
                     if admin_channel:
-                        # 1. 관리자 방으로 보낼 사진 파일 데이터 임시 변환
                         file = await attachment.to_file()
                         
                         admin_embed = discord.Embed(
@@ -134,29 +141,24 @@ async def on_message(message):
                         admin_embed.set_image(url=f"attachment://{attachment.filename}")
                         await admin_channel.send(embed=admin_embed, file=file)
                         
-                        # 2. 유저 채널의 원본 사진 즉시 삭제 (채널 청결 유지)
+                        # 유저가 올린 원본 사진은 즉시 삭제 (채널 청결 유지)
                         await message.delete()
                         
-                        # 3. ⭐️ [핵심] 유저에게 오직 '본인만 볼 수 있는' 에페메럴 응답 강제 송신
-                        # 채널의 웹후크 권한을 빌려 유저를 타겟팅하여 에페메럴 메시지를 보냅니다.
-                        try:
-                            # 채널 내 기존 웹후크를 찾거나 없으면 임시로 생성합니다.
-                            webhooks = await message.channel.webhooks()
-                            webhook = webhooks[0] if webhooks else await message.channel.create_webhook(name="인증봇 확인용")
+                        # ⭐️ 아까 저장해둔 유저의 에페메럴 가이드 창을 완료 메시지로 실시간 수정합니다.
+                        if message.author.id in user_interactions:
+                            saved_interaction = user_interactions[message.author.id]
+                            try:
+                                await saved_interaction.edit_original_response(
+                                    content=f"✅ {message.author.mention}님, 인증사진이 성공적으로 접수되었습니다!\n"
+                                            f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.",
+                                    embed=None, # 가이드 임베드 제거
+                                    view=None   # 가이드 버튼 제거
+                                )
+                            except Exception as e:
+                                print(f"에페메럴 응답 창 업데이트 실패: {e}")
                             
-                            # 사진을 올린 유저에게만 보이는 비밀(Ephemeral) 알림 발송
-                            await webhook.send(
-                                content=f"✅ {message.author.mention}님, 인증사진이 관리자에게 안전하게 전달되었습니다!\n"
-                                        f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.",
-                                ephemeral=True, # 👈 이 옵션으로 나만 보이는 메시지 구현!
-                                username=bot.user.name,
-                                avatar_url=bot.user.avatar.url if bot.user.avatar else None
-                            )
-                        except Exception as e:
-                            # 만약 웹후크 권한 문제 등으로 실패할 경우를 대비한 안전한 일반 메시지 백업
-                            print(f"웹후크 에페메럴 전송 실패: {e}")
-                            await message.channel.send(f"✅ {message.author.mention}님, 사진이 정상 접수되었습니다!", delete_after=5)
-                        
+                            # 처리가 끝났으므로 저장소에서 삭제 (메모리 관리)
+                            del user_interactions[message.author.id]
                         return
 
     await bot.process_commands(message)
