@@ -45,7 +45,8 @@ async def on_guild_channel_create(channel):
             inline=False
         )
         # 이미지 URL이 있다면 아래 주석을 풀고 넣으세요
-        # embed.set_image(url="여러분의_이미지_주소")
+        embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
+        embed.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb63dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
         await channel.send(embed=embed)
 
 # 3. 실행부 (웹 서버를 먼저 켜고 봇을 실행)
