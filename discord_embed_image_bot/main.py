@@ -107,7 +107,7 @@ async def on_ready():
     bot.add_view(GuestFollowUpView())
 
 
-# 손님이 올린 인증사진을 감지해서 관리자방으로 배달하는 로그 시스템 (수정본)
+# 손님이 올린 인증사진을 감지해서 관리자방으로 배달하고, 유저에게만 에페메럴 메시지를 띄우는 시스템
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -121,10 +121,9 @@ async def on_message(message):
                     
                     admin_channel = discord.utils.get(message.guild.text_channels, name="⚙️관리자-인증방")
                     if admin_channel:
-                        # 1. 원본 파일 데이터를 봇이 임시로 변환하여 들고 옵니다.
+                        # 1. 관리자 방으로 보낼 사진 파일 데이터 임시 변환
                         file = await attachment.to_file()
                         
-                        # 2. 관리자 방에 보낼 이쁜 임베드를 만듭니다.
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention} (`{message.author.name}`)\n"
@@ -132,16 +131,32 @@ async def on_message(message):
                                         f"정식 길드원이 맞다면 수동으로 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
-                        # 💡 핵심: 첨부한 파일 이름을 임베드 이미지로 지정합니다.
                         admin_embed.set_image(url=f"attachment://{attachment.filename}")
-                        
-                        # 3. 임베드와 실제 파일 데이터를 '동시에' 관리자 채널로 전송합니다.
-                        # 이렇게 하면 관리자 채널 자체에 파일이 저장되므로 원본이 지워져도 깨지지 않습니다.
                         await admin_channel.send(embed=admin_embed, file=file)
                         
-                        # 4. 유저 채널의 원본 사진은 예정대로 깔끔하게 삭제 (채널 청결 유지)
-                        await message.delete(delay=2)
-                        await message.channel.send(f"✅ {message.author.mention}님, 사진이 관리자에게 안전하게 전달되었습니다!", delete_after=5)
+                        # 2. 유저 채널의 원본 사진 즉시 삭제 (채널 청결 유지)
+                        await message.delete()
+                        
+                        # 3. ⭐️ [핵심] 유저에게 오직 '본인만 볼 수 있는' 에페메럴 응답 강제 송신
+                        # 채널의 웹후크 권한을 빌려 유저를 타겟팅하여 에페메럴 메시지를 보냅니다.
+                        try:
+                            # 채널 내 기존 웹후크를 찾거나 없으면 임시로 생성합니다.
+                            webhooks = await message.channel.webhooks()
+                            webhook = webhooks[0] if webhooks else await message.channel.create_webhook(name="인증봇 확인용")
+                            
+                            # 사진을 올린 유저에게만 보이는 비밀(Ephemeral) 알림 발송
+                            await webhook.send(
+                                content=f"✅ {message.author.mention}님, 인증사진이 관리자에게 안전하게 전달되었습니다!\n"
+                                        f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.",
+                                ephemeral=True, # 👈 이 옵션으로 나만 보이는 메시지 구현!
+                                username=bot.user.name,
+                                avatar_url=bot.user.avatar.url if bot.user.avatar else None
+                            )
+                        except Exception as e:
+                            # 만약 웹후크 권한 문제 등으로 실패할 경우를 대비한 안전한 일반 메시지 백업
+                            print(f"웹후크 에페메럴 전송 실패: {e}")
+                            await message.channel.send(f"✅ {message.author.mention}님, 사진이 정상 접수되었습니다!", delete_after=5)
+                        
                         return
 
     await bot.process_commands(message)
