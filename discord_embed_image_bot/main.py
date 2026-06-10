@@ -34,22 +34,29 @@ async def on_ready():
 @bot.event
 async def on_guild_channel_create(channel):
     if isinstance(channel, discord.TextChannel) and channel.name.startswith("ticket-"):
-        embed = discord.Embed(
+        # 1. 메인 임베드 (텍스트 안내문 + 첫 번째 사진)
+        embed1 = discord.Embed(
             title="📸 인증 사진 업로드 안내",
             description="티켓이 정상적으로 접수되었습니다.\n아래 안내에 따라 인증 사진을 올려주세요!\n",
             color=0x3498db
         )
-        embed.add_field(
+        embed1.add_field(
             name="📌 업로드 방법", 
             value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n2. 촬영한 인증 사진을 첨부합니다.", 
             inline=False
         )
-        # 이미지 URL이 있다면 아래 주석을 풀고 넣으세요
-        embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
-        await channel.send(embed=embed)
+        # 첫 번째 이미지 URL 설정
+        embed1.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
+
+        # 2. 서브 임베드 (텍스트 없이 두 번째 사진만 담음)
+        # ⚠️ 중요: 메인 임베드와 완전히 '동일한 URL 주소'를 적어줘야 한 묶음으로 인식해!
+        embed2 = discord.Embed(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
         
-        embed.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb63dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
-        await channel.send(embed=embed)
+        # 두 번째 이미지 URL 설정
+        embed2.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb3dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
+
+        # 3. 두 임베드를 리스트로 묶어서 단 '한 번만' 전송!
+        await channel.send(embeds=[embed1, embed2])
 
 # 3. 실행부 (웹 서버를 먼저 켜고 봇을 실행)
 keep_alive()
