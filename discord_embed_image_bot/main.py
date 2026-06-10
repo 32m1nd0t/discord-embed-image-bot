@@ -36,16 +36,18 @@ async def on_guild_channel_create(channel):
     if isinstance(channel, discord.TextChannel) and channel.name.startswith("ticket-"):
         embed = discord.Embed(
             title="📸 인증 사진 업로드 안내",
-            description="티켓이 정상적으로 접수되었습니다.\n아래 안내에 따라 인증 사진을 올려주세요!",
+            description="티켓이 정상적으로 접수되었습니다.\n아래 안내에 따라 인증 사진을 올려주세요!\n",
             color=0x3498db
         )
         embed.add_field(
             name="📌 업로드 방법", 
-            value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n2. 촬영한 인증 사진을 첨부합니다.\n3. 사진과 함께 필요한 정보를 적어 전송합니다.", 
+            value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n2. 촬영한 인증 사진을 첨부합니다.", 
             inline=False
         )
         # 이미지 URL이 있다면 아래 주석을 풀고 넣으세요
         embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
+        await channel.send(embed=embed)
+        
         embed.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb63dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
         await channel.send(embed=embed)
 
