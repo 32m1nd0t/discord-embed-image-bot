@@ -25,21 +25,42 @@ def keep_alive():
 # 2단계: 손님 진입 후 에페메럴로 튀어나올 길드 인증 신청 버튼
 class GuestFollowUpView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=None) # 중요: 버튼 만료 방지
+        super().__init__(timeout=None)
 
     @discord.ui.button(label="길드 인증 신청", style=discord.ButtonStyle.primary, custom_id="guild_auth_btn")
     async def guild_auth(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⚠️ 중요: 승인 요청을 보낼 관리자 전용 채널명을 정확히 적어주세요.
+        # 1. 관리자 전용 채널로 실시간 알림 발송
         admin_channel = discord.utils.get(interaction.guild.text_channels, name="⚙️관리자-인증방")
         
         if admin_channel:
-            # 관리자 방에 승인/거절 버튼을 달아 메시지 송신 (필요 시 추후 이 버튼도 자동화 가능)
-            await admin_channel.send(f"🔔 **{interaction.user.mention}** 님이 길드원 인증을 요청했습니다. 수동으로 2단계 역할을 부여해주세요.")
+            admin_embed = discord.Embed(
+                title="🔔 신규 길드 인증 요청",
+                description=f"{interaction.user.mention} (`{interaction.user.name}`) 님이 길드 인증을 요청했습니다.\n"
+                            f"현재 유저에게 인증사진 업로드 안내가 전송되었습니다.",
+                color=0xe67e22
+            )
+            await admin_channel.send(embed=admin_embed)
         
-        await interaction.response.send_message(
-            content="✅ 관리자에게 인증 요청이 전달되었습니다. 잠시만 기다려주세요!", 
-            ephemeral=True
+        # 2. 신청한 손님 유저에게만 보이는 에페메럴(본인 전용) 안내 메시지 및 사진 요청
+        # 💡 팁: 기존에 만들어두신 티켓 사진 가이드가 있다면, 그 이미지 URL을 여기에 그대로 활용하셔도 좋습니다!
+        user_embed = discord.Embed(
+            title="📸 길드원 인증사진 업로드 안내",
+            description="우리 길드원이 맞는지 확인하기 위해 **인증사진**이 필요합니다.\n"
+                        "아래 안내에 따라 현재 화면 혹은 별도로 안내받은 채널에 사진을 올려주세요!\n",
+            color=0x3498db
         )
+        user_embed.add_field(
+            name="📌 업로드 방법", 
+            value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n"
+                  "2. 촬영한 **길드 가입 증명 사진**을 첨부하여 전송합니다.\n\n"
+                  "※ 사진이 확인되면 관리자가 검토 후 즉시 정식 회원 역할을 부여해 드립니다.", 
+            inline=False
+        )
+        # 필요 시 예시 사진 가이드라인 이미지가 있다면 아래에 추가 가능합니다.
+        user_embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
+
+        # 유저 화면에만 연속 메시지로 띄워줌
+        await interaction.response.send_message(embed=user_embed, ephemeral=True)
 
 # 1단계: 메인 안내 채널에 박혀있을 입장 패널 버튼
 class MainWelcomeView(discord.ui.View):
