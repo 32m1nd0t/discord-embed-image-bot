@@ -56,7 +56,7 @@ class GuestFollowUpView(discord.ui.View):
         )
         user_embed.add_field(
             name="📌 업로드 방법", 
-            value="1. 아래의 예시 사진처럼 길드창과 캐릭터창이 동시에 나온 사진을 캡쳐해서 올려주시면 됩니다.\n"
+            value="1. 아래의 예시 사진과 같이 길드창과 캐릭터창이 동시에 나온 사진을 캡쳐해서 올려주세요.\n"
                   "2. 사진이 올라가면 봇이 감지하여 이 안내 창을 성공 메시지로 변경합니다.\n\n"
                   "※ 채널 보안을 위해 유저님이 올리신 원본 사진은 즉시 삭제됩니다.", 
             inline=False
@@ -80,7 +80,7 @@ class MainWelcomeView(discord.ui.View):
             await interaction.user.add_roles(guest_role)
         
         await interaction.response.send_message(
-            content="임시 **[손님]** 역할이 부여되었습니다!\n 지금부터 음성채널에 참가하실 수 있습니다.\n 길드원이시라면 아래 버튼을 길드 인증을 이어서 진행해주세요.",
+            content=" 임시 **[손님]** 역할이 부여되었습니다!\n 지금부터 음성채널에 참가하실 수 있습니다.\n 길드원이시라면 아래 버튼을 통해 길드 인증을 이어서 진행해주세요.",
             view=GuestFollowUpView(),
             ephemeral=True
         )
