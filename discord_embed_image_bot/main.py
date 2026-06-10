@@ -107,16 +107,13 @@ async def on_ready():
     bot.add_view(GuestFollowUpView())
 
 
-# 손님이 올린 인증사진을 감지해서 관리자방으로 배달하는 로그 시스템
+# 손님이 올린 인증사진을 감지해서 관리자방으로 배달하는 로그 시스템 (수정본)
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # 봇이 메시지를 받을 때마다 터미널/Render 로그에 채널 이름과 파일 유무를 출력합니다.
-    print(f"로그 - 메시지 감지됨! 채널명: {message.channel.name}, 첨부파일 개수: {len(message.attachments)}")
-
-    # ⚠️ 중요: 실제 유저들이 들어와서 버튼을 누르고 사진을 올릴 '입장 채널 이름'을 적어주세요.
+    # ⚠️ 중요: 실제 사진을 올릴 대기방 채널명과 일치하는지 꼭 확인하세요.
     if message.channel.name == "인증채널": 
         if message.attachments:
             for attachment in message.attachments:
@@ -124,6 +121,10 @@ async def on_message(message):
                     
                     admin_channel = discord.utils.get(message.guild.text_channels, name="⚙️관리자-인증방")
                     if admin_channel:
+                        # 1. 원본 파일 데이터를 봇이 임시로 변환하여 들고 옵니다.
+                        file = await attachment.to_file()
+                        
+                        # 2. 관리자 방에 보낼 이쁜 임베드를 만듭니다.
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention} (`{message.author.name}`)\n"
@@ -131,11 +132,14 @@ async def on_message(message):
                                         f"정식 길드원이 맞다면 수동으로 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
-                        admin_embed.set_image(url=attachment.url)
+                        # 💡 핵심: 첨부한 파일 이름을 임베드 이미지로 지정합니다.
+                        admin_embed.set_image(url=f"attachment://{attachment.filename}")
                         
-                        await admin_channel.send(embed=admin_embed)
+                        # 3. 임베드와 실제 파일 데이터를 '동시에' 관리자 채널로 전송합니다.
+                        # 이렇게 하면 관리자 채널 자체에 파일이 저장되므로 원본이 지워져도 깨지지 않습니다.
+                        await admin_channel.send(embed=admin_embed, file=file)
                         
-                        # 유저 채널의 원본 사진은 2초 뒤 삭제하여 채널 청결 유지
+                        # 4. 유저 채널의 원본 사진은 예정대로 깔끔하게 삭제 (채널 청결 유지)
                         await message.delete(delay=2)
                         await message.channel.send(f"✅ {message.author.mention}님, 사진이 관리자에게 안전하게 전달되었습니다!", delete_after=5)
                         return
