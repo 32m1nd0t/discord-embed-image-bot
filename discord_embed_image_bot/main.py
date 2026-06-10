@@ -37,26 +37,26 @@ class GuestFollowUpView(discord.ui.View):
         user_interactions[interaction.user.id] = interaction
 
         # ⚠️ 중요: 관리자 알림 및 사진 로그가 찍힐 채널명을 정확히 적어주세요.
-        admin_channel = discord.utils.get(interaction.guild.text_channels, name="⚙️관리자-인증방")
+        admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
         
         if admin_channel:
             admin_embed = discord.Embed(
                 title="🔔 신규 길드 인증 요청",
-                description=f"{interaction.user.mention} (`{interaction.user.name}`) 님이 길드 인증을 요청했습니다.\n"
+                description=f"{interaction.user.mention} 님이 길드 인증을 요청했습니다.\n"
                             f"현재 유저가 사진 업로드를 진행 중입니다.",
                 color=0xe67e22
             )
             await admin_channel.send(embed=admin_embed)
         
         user_embed = discord.Embed(
-            title="📸 길드원 인증사진 업로드 안내",
-            description="우리 길드원이 맞는지 확인하기 위해 **인증사진**이 필요합니다.\n"
+            title="📸 길드 인증사진 업로드 안내",
+            description="왁타버스 관련 길드원이 맞는지 확인하기 위해 **인증사진**이 필요합니다.\n"
                         "**지금 현재 이 채널에 그대로 사진을 올려주세요!**\n",
             color=0x3498db
         )
         user_embed.add_field(
             name="📌 업로드 방법", 
-            value="1. 채팅창 왼쪽의 `+` 버튼을 누르고 사진을 전송합니다.\n"
+            value="1. 아래의 예시 사진처럼 길드창과 캐릭터창이 동시에 나온 사진을 캡쳐해서 올려주시면 됩니다.\n"
                   "2. 사진이 올라가면 봇이 감지하여 이 안내 창을 성공 메시지로 변경합니다.\n\n"
                   "※ 채널 보안을 위해 유저님이 올리신 원본 사진은 즉시 삭제됩니다.", 
             inline=False
@@ -80,19 +80,19 @@ class MainWelcomeView(discord.ui.View):
             await interaction.user.add_roles(guest_role)
         
         await interaction.response.send_message(
-            content="임시 **[손님]** 역할이 부여되었습니다!\n우리 길드원이시라면 아래 버튼을 눌러 정식 회원 인증을 이어서 진행해주세요.",
+            content="임시 **[손님]** 역할이 부여되었습니다!\n 지금부터 음성채널에 참가하실 수 있습니다.\n 길드원이시라면 아래 버튼을 길드 인증을 이어서 진행해주세요.",
             view=GuestFollowUpView(),
             ephemeral=True
         )
 
-    @discord.ui.button(label="VIP로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
+    @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
     async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 1등 역할인 '버추얼' 역할 즉시 부여
+        # '버추얼' 역할 즉시 부여
         vip_role = discord.utils.get(interaction.guild.roles, name="버추얼") 
         
         if vip_role:
             await interaction.user.add_roles(vip_role)
-            await interaction.response.send_message(content="✨ VIP 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다!", ephemeral=True)
+            await interaction.response.send_message(content="✨ 인증이 완료되었습니다. **[버추얼]** 역할이 활성화되었습니다!", ephemeral=True)
         else:
             await interaction.response.send_message(content="❌ '버추얼' 역할을 찾을 수 없습니다. 서버 설정의 역할 이름을 확인해주세요.", ephemeral=True)
 
@@ -127,15 +127,15 @@ async def on_message(message):
             for attachment in message.attachments:
                 if attachment.content_type and attachment.content_type.startswith("image/"):
                     
-                    admin_channel = discord.utils.get(message.guild.text_channels, name="⚙️관리자-인증방")
+                    admin_channel = discord.utils.get(message.guild.text_channels, name="인증채널-관리자")
                     if admin_channel:
                         file = await attachment.to_file()
                         
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
-                            description=f"**신청자:** {message.author.mention} (`{message.author.name}`)\n"
+                            description=f"**신청자:** {message.author.mention}\n"
                                         f"**일시:** {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                                        f"정식 길드원이 맞다면 수동으로 **[길드원]** 역할을 부여해주세요.",
+                                        f"길드원이 맞다면 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
                         admin_embed.set_image(url=f"attachment://{attachment.filename}")
@@ -202,7 +202,7 @@ async def 입장패널생성(ctx):
     embed = discord.Embed(
         title="⚔️ 서버 입장 안내",
         description="방문 목적에 맞는 버튼을 눌러주세요.\n\n"
-                    "**• VIP로 입장:** 아무 인증 없이 가장 높은 [버추얼] 역할이 부여됩니다.\n"
+                    "**• 버추얼로 입장:** [버추얼] 역할이 부여됩니다.\n"
                     "**• 손님으로 입장:** 음성 채널만 이용 가능한 임시 [손님] 역할이 부여됩니다.",
         color=0x2ecc71
     )
