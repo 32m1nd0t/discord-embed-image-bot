@@ -113,8 +113,11 @@ async def on_message(message):
     if message.author.bot:
         return
 
+    # 봇이 메시지를 받을 때마다 터미널/Render 로그에 채널 이름과 파일 유무를 출력합니다.
+    print(f"로그 - 메시지 감지됨! 채널명: {message.channel.name}, 첨부파일 개수: {len(message.attachments)}")
+
     # ⚠️ 중요: 실제 유저들이 들어와서 버튼을 누르고 사진을 올릴 '입장 채널 이름'을 적어주세요.
-    if message.channel.name == "입장-안내": 
+    if message.channel.name == "인증채널": 
         if message.attachments:
             for attachment in message.attachments:
                 if attachment.content_type and attachment.content_type.startswith("image/"):
