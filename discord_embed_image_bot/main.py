@@ -144,13 +144,14 @@ async def on_message(message):
                         # 유저가 올린 원본 사진은 즉시 삭제 (채널 청결 유지)
                         await message.delete()
                         
-                        # ⭐️ 아까 저장해둔 유저의 에페메럴 가이드 창을 완료 메시지로 실시간 수정합니다.
+                       # ⭐️ 아까 저장해둔 유저의 에페메럴 가이드 창을 완료 메시지로 실시간 수정합니다.
                         if message.author.id in user_interactions:
                             saved_interaction = user_interactions[message.author.id]
                             try:
                                 await saved_interaction.edit_original_response(
                                     content=f"✅ {message.author.mention}님, 인증사진이 성공적으로 접수되었습니다!\n"
-                                            f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.",
+                                            f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.\n\n"
+                                            f"서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)",
                                     embed=None, # 가이드 임베드 제거
                                     view=None   # 가이드 버튼 제거
                                 )
