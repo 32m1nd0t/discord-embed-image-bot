@@ -53,7 +53,7 @@ async def on_guild_channel_create(channel):
         embed2 = discord.Embed(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
         
         # 두 번째 이미지 URL 설정
-        embed2.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb3dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
+        embed2.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb63dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
 
         # 3. 두 임베드를 리스트로 묶어서 단 '한 번만' 전송!
         await channel.send(embeds=[embed1, embed2])
