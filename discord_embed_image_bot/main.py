@@ -85,14 +85,27 @@ class MainWelcomeView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
+   @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
     async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # '버추얼' 역할 즉시 부여
+        # 1등 역할인 '버추얼' 역할 즉시 부여
         vip_role = discord.utils.get(interaction.guild.roles, name="버추얼") 
         
         if vip_role:
             await interaction.user.add_roles(vip_role)
-            await interaction.response.send_message(content="✨ 인증이 완료되었습니다. **[버추얼]** 역할이 활성화되었습니다!", ephemeral=True)
+            
+            # ⭐️ [추가] 관리자 전용 채널로 버추얼 입장 알림 로그 발송
+            admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
+            if admin_channel:
+                admin_embed = discord.Embed(
+                    title="👑 버추얼 역할 부여 알림",
+                    description=f"{interaction.user.mention} 님이 **[버추얼로 입장]** 버튼을 눌러 **[버추얼]** 역할이 자동으로 부여되었습니다.",
+                    color=0xe91e63 
+                )
+                admin_embed.set_footer(text=f"일시: {interaction.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                await admin_channel.send(embed=admin_embed)
+            
+            # 유저에게 보이는 에페메럴 메시지
+            await interaction.response.send_message(content="✨ VIP 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다!", ephemeral=True)
         else:
             await interaction.response.send_message(content="❌ '버추얼' 역할을 찾을 수 없습니다. 서버 설정의 역할 이름을 확인해주세요.", ephemeral=True)
 
