@@ -85,8 +85,8 @@ class MainWelcomeView(discord.ui.View):
             ephemeral=True
         )
 
-   @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
-   async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
+    async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
         # 1등 역할인 '버추얼' 역할 즉시 부여
         vip_role = discord.utils.get(interaction.guild.roles, name="버추얼") 
         
