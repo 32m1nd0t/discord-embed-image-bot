@@ -96,12 +96,16 @@ class MainWelcomeView(discord.ui.View):
             # ⭐️ [추가] 관리자 전용 채널로 버추얼 입장 알림 로그 발송
             admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
             if admin_channel:
+                from zoneinfo import ZoneInfo
+                from datetime import datetime
+                kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
+                
                 admin_embed = discord.Embed(
                     title="👑 버추얼 역할 부여 알림",
                     description=f"{interaction.user.mention} 님이 **[버추얼로 입장]** 버튼을 눌러 **[버추얼]** 역할이 자동으로 부여되었습니다.",
                     color=0xe91e63 
                 )
-                admin_embed.set_footer(text=f"일시: {interaction.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                admin_embed.set_footer(text=f"일시: {kst_now.strftime('%Y-%m-%d %H:%M:%S')}")
                 await admin_channel.send(embed=admin_embed)
             
             # 유저에게 보이는 에페메럴 메시지
@@ -147,7 +151,7 @@ async def on_message(message):
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n"
-                                        f"**일시:** {message.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                                        f"**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
                                         f"길드원이 맞다면 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
