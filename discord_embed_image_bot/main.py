@@ -148,6 +148,10 @@ async def on_message(message):
                     if admin_channel:
                         file = await attachment.to_file()
                         
+                        from zoneinfo import ZoneInfo
+                        from datetime import datetime
+                        kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
+                        
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n"
