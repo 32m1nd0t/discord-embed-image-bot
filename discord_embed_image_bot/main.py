@@ -105,7 +105,7 @@ class MainWelcomeView(discord.ui.View):
                 await admin_channel.send(embed=admin_embed)
             
             # 유저에게 보이는 에페메럴 메시지
-            await interaction.response.send_message(content="✨ VIP 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다!", ephemeral=True)
+            await interaction.response.send_message(content="✨ 버추얼 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다! \n\n서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)", ephemeral=True)
         else:
             await interaction.response.send_message(content="❌ '버추얼' 역할을 찾을 수 없습니다. 서버 설정의 역할 이름을 확인해주세요.", ephemeral=True)
 
