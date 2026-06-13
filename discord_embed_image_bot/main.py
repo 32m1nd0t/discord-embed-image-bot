@@ -3,9 +3,14 @@ from discord.ext import commands
 from threading import Thread
 from flask import Flask
 import os
+import logging  # 🔒 도배 로그 방지를 위해 로깅 모듈 추가
 
 # 1. Render 호환을 위한 가짜 웹 서버(Flask) 설정
 app = Flask('')
+
+# 🔒 UptimeRobot이 찌르는 무의미한 웹 접속 로그(Werkzeug) 숨기기
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
 
 @app.route('/')
 def home():
@@ -22,8 +27,76 @@ def keep_alive():
 
 # ------------------ [1. 인증 시스템 및 에페메럴 연동 구역] ------------------
 
-# ⭐️ [새로 추가된 라인] 유저가 버튼을 누른 상호작용(토큰)을 잠시 보관하는 저장소입니다.
+# 유저가 버튼을 누른 상호작용(토큰)을 잠시 보관하는 저장소
 user_interactions = {}
+
+
+# 🆕 [추가] 관리자방 로그 밑에 달릴 [승인] 버튼 클래스
+class AdminApprovalView(discord.ui.View):
+    def __init__(self, applicant_id: int):
+        super().__init__(timeout=None)
+        self.applicant_id = applicant_id # 사진을 올린 유저의 ID를 기억
+
+    @discord.ui.button(label="승인", style=discord.ButtonStyle.success, custom_id="admin_approve_btn")
+    async def approve_user(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 버튼을 누른 사람이 관리자 권한이 있는지 검사
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ 관리자만 이 버튼을 사용할 수 있습니다.", ephemeral=True)
+            return
+
+        guild = interaction.guild
+        member = guild.get_member(self.applicant_id) # 사진을 올렸던 유저 찾기
+        guild_role = discord.utils.get(guild.roles, name="길드원")
+
+        if not guild_role:
+            await interaction.response.send_message("❌ '길드원' 역할을 찾을 수 없습니다.", ephemeral=True)
+            return
+
+        # 1. 유저에게 길드원 역할 부여
+        if member:
+            await member.add_roles(guild_role)
+
+        # 2. 한국 표준시(KST) 시간 생성
+        from zoneinfo import ZoneInfo
+        from datetime import datetime
+        kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
+        time_str = kst_now.strftime('%Y-%m-%d %H:%M:%S')
+
+        # 3. ⭐️ [박제 로그] 관리자가 보는 로그 창을 "어떤 관리자가 승인했는지" 실시간으로 수정(Edit)
+        approved_embed = discord.Embed(
+            title="🔒 인증 완료",
+            description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
+                        f"⚙️ **처리 관리자:** {interaction.user.mention}\n"
+                        f"⏰ **인증 일시:** {time_str}\n"
+                        f"👑 **부여된 직책:** [길드원]",
+            color=0x2ecc71 # 완료를 뜻하는 초록색으로 변환
+        )
+        # 유저가 제출했던 인증샷 이미지 깨지지 않게 그대로 유지
+        if interaction.message.embeds and interaction.message.embeds[0].image:
+            approved_embed.set_image(url=interaction.message.embeds[0].image.url)
+
+        # 관리자 채널의 메시지를 업데이트 (버튼은 처리가 끝났으므로 소멸)
+        await interaction.message.edit(embed=approved_embed, view=None)
+
+        # 4. 동시에 유저가 보고 있던 에페메럴 가이드 창도 승인 완료 창으로 실시간 업데이트
+        if self.applicant_id in user_interactions:
+            saved_interaction = user_interactions[self.applicant_id]
+            try:
+                await saved_interaction.edit_original_response(
+                    content=f"🎉 {member.mention if member else ''}님, 축하합니다!\n"
+                            f"**{interaction.user.mention}(관리자)**님이 회원님의 인증을 확인하고 **[길드원]** 직책을 부여했습니다.\n"
+                            f"⏰ **인증 일시:** {time_str}\n\n"
+                            f"📌 이제 서버의 모든 채널을 이용하실 수 있습니다. 공지사항을 다시 확인해 주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)",
+                    embed=None,
+                    view=None
+                )
+            except Exception as e:
+                print(f"유저 에페메럴 창 원격 수정 실패: {e}")
+            
+            del user_interactions[self.applicant_id]
+
+        # 버튼을 누른 관리자 본인에게 성공 피드백 알림
+        await interaction.response.send_message(f"✅ 승인 처리가 완료되었습니다.", ephemeral=True)
 
 
 # 2단계: 손님 진입 후 에페메럴로 튀어나올 길드 인증 신청 버튼
@@ -33,10 +106,8 @@ class GuestFollowUpView(discord.ui.View):
 
     @discord.ui.button(label="길드 인증 신청", style=discord.ButtonStyle.primary, custom_id="guild_auth_btn")
     async def guild_auth(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⭐️ 유저가 버튼을 누른 이 순간의 상호작용 객체를 저장합니다. (사진 올렸을 때 창을 바꾸기 위함)
         user_interactions[interaction.user.id] = interaction
 
-        # ⚠️ 중요: 관리자 알림 및 사진 로그가 찍힐 채널명을 정확히 적어주세요.
         admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
         
         if admin_channel:
@@ -63,7 +134,6 @@ class GuestFollowUpView(discord.ui.View):
         )
         user_embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
 
-        # 유저 화면에 에페메럴 가이드라인 전송
         await interaction.response.send_message(embed=user_embed, ephemeral=True)
 
 
@@ -74,7 +144,6 @@ class MainWelcomeView(discord.ui.View):
 
     @discord.ui.button(label="손님으로 입장", style=discord.ButtonStyle.secondary, custom_id="welcome_guest_btn")
     async def guest_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # '손님' 역할 자동 부여
         guest_role = discord.utils.get(interaction.guild.roles, name="손님")
         if guest_role:
             await interaction.user.add_roles(guest_role)
@@ -87,13 +156,11 @@ class MainWelcomeView(discord.ui.View):
 
     @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
     async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 1등 역할인 '버추얼' 역할 즉시 부여
         vip_role = discord.utils.get(interaction.guild.roles, name="버추얼") 
         
         if vip_role:
             await interaction.user.add_roles(vip_role)
             
-            # ⭐️ [추가] 관리자 전용 채널로 버추얼 입장 알림 로그 발송
             admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
             if admin_channel:
                 from zoneinfo import ZoneInfo
@@ -108,7 +175,6 @@ class MainWelcomeView(discord.ui.View):
                 admin_embed.set_footer(text=f"일시: {kst_now.strftime('%Y-%m-%d %H:%M:%S')}")
                 await admin_channel.send(embed=admin_embed)
             
-            # 유저에게 보이는 에페메럴 메시지
             await interaction.response.send_message(content="✨ 버추얼 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다! \n\n서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)", ephemeral=True)
         else:
             await interaction.response.send_message(content="❌ '버추얼' 역할을 찾을 수 없습니다. 서버 설정의 역할 이름을 확인해주세요.", ephemeral=True)
@@ -132,13 +198,12 @@ async def on_ready():
     bot.add_view(GuestFollowUpView())
 
 
-# ⭐️ [대폭 수정된 부분] 사진을 복사하고 유저의 에페메럴 가이드 창을 결과창으로 변환합니다.
+# 사진 수집 시 관리자방 로그에 [승인] 버튼 뷰를 장착하여 전송하는 구역
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
-    # ⚠️ 중요: 실제 사진을 올릴 대기방 채널명과 일치하는지 꼭 확인하세요.
     if message.channel.name == "인증채널": 
         if message.attachments:
             for attachment in message.attachments:
@@ -156,31 +221,15 @@ async def on_message(message):
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n"
                                         f"**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                                        f"길드원이 맞다면 **[길드원]** 역할을 부여해주세요.",
+                                        f"사진을 확인하신 후 아래 **[승인]** 버튼을 눌러주세요.",
                             color=0x9b59b6
                         )
                         admin_embed.set_image(url=f"attachment://{attachment.filename}")
-                        await admin_channel.send(embed=admin_embed, file=file)
                         
-                        # 유저가 올린 원본 사진은 즉시 삭제 (채널 청결 유지)
+                        # 💡 [합체 완료] view=AdminApprovalView(...) 옵션을 추가해 로그 밑에 승인 버튼을 붙여 보냅니다.
+                        await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
+                        
                         await message.delete()
-                        
-                       # ⭐️ 아까 저장해둔 유저의 에페메럴 가이드 창을 완료 메시지로 실시간 수정합니다.
-                        if message.author.id in user_interactions:
-                            saved_interaction = user_interactions[message.author.id]
-                            try:
-                                await saved_interaction.edit_original_response(
-                                    content=f"✅ {message.author.mention}님, 인증사진이 성공적으로 접수되었습니다!\n"
-                                            f"관리자가 확인 후 **[길드원]** 역할을 부여해 드릴 예정이니 잠시만 기다려주세요.\n\n"
-                                            f"서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)",
-                                    embed=None, # 가이드 임베드 제거
-                                    view=None   # 가이드 버튼 제거
-                                )
-                            except Exception as e:
-                                print(f"에페메럴 응답 창 업데이트 실패: {e}")
-                            
-                            # 처리가 끝났으므로 저장소에서 삭제 (메모리 관리)
-                            del user_interactions[message.author.id]
                         return
 
     await bot.process_commands(message)
