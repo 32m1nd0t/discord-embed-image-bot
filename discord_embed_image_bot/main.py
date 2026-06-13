@@ -74,12 +74,7 @@ class AdminApprovalView(discord.ui.View):
                 print(f"예비 알림 메시지 삭제 실패: {e}")
             del pending_admin_messages[self.applicant_id]
 
-        # 4. 기존 임베드 박스 내부의 실제 인증샷 URL 추출
-        existing_img_url = None
-        if interaction.message.embeds and interaction.message.embeds[0].image:
-            existing_img_url = interaction.message.embeds[0].image.url
-
-        # 5. 🔒 관리자 채널의 로그 메시지 업데이트
+        # 4. 🔒 관리자 채널의 로그 메시지 업데이트
         approved_embed = discord.Embed(
             title="🔒 인증 완료",
             description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
@@ -89,13 +84,14 @@ class AdminApprovalView(discord.ui.View):
             color=0x2ecc71
         )
         
-        if existing_img_url:
-            approved_embed.set_image(url=existing_img_url)
+        # 💡 [핵심 교정] 기존 메시지에 박혀있던 임베드 안의 이미지는 None 처리하여 가려버립니다.
+        # 이렇게 하면 첨부 파일로 꽂아둔 원본 사진 딱 1장만 에러 없이 박스 밑에 정갈하게 보존됩니다!
+        approved_embed.set_image(url=None)
 
-        # 관리자방 알림창 없이 로그 자체를 업데이트
+        # 관리자방 로그 업데이트 및 버튼 제거 (관리자용 팝업 메시지 안 뜸)
         await interaction.response.edit_message(embed=approved_embed, view=None)
 
-        # 6. 유저 화면의 에페메럴 창 완료 안내로 안전하게 변경
+        # 5. 유저 화면의 에페메럴 가이드 창을 최종 완료 안내 창으로 실시간 업데이트
         if self.applicant_id in user_interactions:
             saved_interaction = user_interactions[self.applicant_id]
             try:
@@ -119,7 +115,7 @@ class GuestFollowUpView(discord.ui.View):
 
     @discord.ui.button(label="길드 인증 신청", style=discord.ButtonStyle.primary, custom_id="guild_auth_btn")
     async def guild_auth(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⭐️ [문구 수정] 이미 길드원 역할을 가지고 있을 때 간결한 알림 처리
+        # ⭐️ [문구 간결화] 이미 길드원 역할을 가지고 있을 때
         has_guild_role = discord.utils.get(interaction.user.roles, name="길드원")
         if has_guild_role:
             await interaction.response.send_message(
@@ -179,7 +175,7 @@ class MainWelcomeView(discord.ui.View):
 
     @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
     async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⭐️ [문구 수정] 이미 버추얼 역할을 가지고 있을 때 간결한 알림 처리
+        # ⭐️ [문구 간결화] 이미 버추얼 역할을 가지고 있을 때
         has_vip_role = discord.utils.get(interaction.user.roles, name="버추얼")
         if has_vip_role:
             await interaction.response.send_message(
@@ -207,7 +203,7 @@ class MainWelcomeView(discord.ui.View):
                 admin_embed.set_footer(text=f"일시: {kst_now.strftime('%Y-%m-%d %H:%M:%S')}")
                 await admin_channel.send(embed=admin_embed)
             
-            await interaction.response.send_message(content="✨ 버추얼 인증이 완료되었습니다. **[버추얼]** 역할의 모든 권한이 활성화되었습니다! \n\n서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)", ephemeral=True)
+            await interaction.response.send_message(content="✨ 버추얼 인증이 완료되었습니다. **[버추얼]** 역할 of 모든 권한이 활성화되었습니다! \n\n서버 공지사항을 필독해주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)", ephemeral=True)
         else:
             await interaction.response.send_message(content="❌ '버추얼' 역할을 찾을 수 없습니다. 서버 설정의 역할 이름을 확인해주세요.", ephemeral=True)
 
@@ -243,6 +239,9 @@ async def on_message(message):
                     
                     admin_channel = discord.utils.get(message.guild.text_channels, name="인증채널-관리자")
                     if admin_channel:
+                        # 💡 [롤백 및 교정] 바이너리 파일 데이터를 봇 세션으로 직접 내려받아 첨부파일 객체로 빌드합니다.
+                        file = await attachment.to_file()
+                        
                         from zoneinfo import ZoneInfo
                         from datetime import datetime
                         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
@@ -254,7 +253,8 @@ async def on_message(message):
                                         f"사진을 확인하신 후 아래 **[승인]** 버튼을 눌러주세요.",
                             color=0x9b59b6
                         )
-                        admin_embed.set_image(url=attachment.url)
+                        # 디스코드 내부 가상 파일 첨부 경로 명시
+                        admin_embed.set_image(url=f"attachment://{attachment.filename}")
                         
                         # 유저 원본 메시지 파기 전 대기 상태 안내 창으로 변환
                         if message.author.id in user_interactions:
@@ -268,10 +268,10 @@ async def on_message(message):
                             except Exception as e:
                                 print(f"유저 대기 상태 에페메럴 업데이트 실패: {e}")
                         
-                        # 관리자방 전송
-                        await admin_channel.send(embed=admin_embed, view=AdminApprovalView(message.author.id))
+                        # 💡 파일 데이터를 담아서 안전하게 전송 (원본이 지워져도 사진이 안 터집니다.)
+                        await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
                         
-                        # 원본 삭제
+                        # 안전하게 백업 전송이 완료된 후 유저 원본 채팅 삭제
                         await message.delete()
                         return
 
@@ -294,7 +294,7 @@ async def 입장패널생성(ctx):
     embed = discord.Embed(
         title="⚔️ 서버 입장 안내",
         description="방문 목적에 맞는 버튼을 눌러주세요.\n\n"
-                    "**• 버추얼로 입장:** [버추얼] 역할이 부여됩니다.\n"
+                    "**• 버추얼로 입장:** [버추얼] 역할이 부여되었습니다.\n"
                     "**• 손님으로 입장:** 음성 채널만 이용 가능한 임시 [손님] 역할이 부여됩니다.",
         color=0x2ecc71
     )
