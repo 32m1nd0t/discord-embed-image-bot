@@ -35,7 +35,7 @@ guest_interactions = {}
 pending_admin_messages = {}
 
 
-# ------------------ [2. 관리자방 독립형 [승인] 시스템] ------------------
+# ------------------ [2. 관리자 전용 승인 시스템] ------------------
 
 class AdminApprovalView(discord.ui.View):
     def __init__(self, applicant_id: int):
@@ -75,14 +75,12 @@ class AdminApprovalView(discord.ui.View):
                 pass
             del pending_admin_messages[self.applicant_id]
 
-        # 5. ⭐️ [옛날 방식으로의 복원 핵심] 
-        # 메시지를 수정하려다 버그를 내지 않고, 기존 보라색 메시지에서 사진 파일을 다시 추출한 뒤
-        # 기존 보라색 창은 완전히 삭제(delete)하고, 정갈한 초록색 창을 새로 전송(send)합니다.
-        
-        # 기존 메시지에 들어있는 와우 스크린샷 추출
-        existing_img_url = None
-        if interaction.message.embeds and interaction.message.embeds[0].image:
-            existing_img_url = interaction.message.embeds[0].image.url
+        # 5. ⭐️ [옛날 방식으로의 복원] 
+        # 메시지를 새로 보내 사진을 터뜨리지 않고, 기존 보라색 메시지를 그대로 수정(edit)합니다.
+        # 이때 기존에 등록되어 있던 첨부 파일(사진)의 고유 이름을 찾아내어 초록색 임베드와 완벽하게 재연동합니다.
+        filename = "auth_image.png"
+        if interaction.message.attachments:
+            filename = interaction.message.attachments[0].filename
 
         # 초록색 인증 완료 박스 구성
         approved_embed = discord.Embed(
@@ -94,14 +92,11 @@ class AdminApprovalView(discord.ui.View):
             color=0x2ecc71
         )
         
-        # 추출한 와우 스크린샷을 초록색 박스 내부에 완벽하게 결합
-        if existing_img_url:
-            approved_embed.set_image(url=existing_img_url)
+        # 💡 기존 메시지에 첨부되어 있던 원본 사진 파일을 임베드 이미지 영역에 완벽하게 박아 넣습니다.
+        approved_embed.set_image(url=f"attachment://{filename}")
 
-        # 💡 관리자용 상호작용 피드백을 주면서, 기존 보라색 메시지는 시원하게 파기하고 새 초록색 메시지를 쏩니다.
-        await interaction.response.defer() # 팝업 창 안 뜨게 대기 처리
-        await interaction.channel.send(embed=approved_embed) # 깔끔한 1장짜리 완료 로그 전송
-        await interaction.message.delete() # 기존 보라색 버튼 메시지 영구 파기
+        # 관리자 채널의 메시지를 실시간 수정 (중복 사진 없이 박스 안에 완벽히 고정)
+        await interaction.response.edit_message(embed=approved_embed, view=None)
 
         # 6. 유저방 청소: "임시 [손님] 역할이 부여되었습니다!..." 최초 에페메럴 가이드 창 삭제
         if self.applicant_id in guest_interactions:
@@ -237,19 +232,21 @@ async def on_message(message):
                 if attachment.content_type and attachment.content_type.startswith("image/"):
                     admin_channel = discord.utils.get(message.guild.text_channels, name="인증채널-관리자")
                     if admin_channel:
-                        # 파일 첨부 바이너리 복사
+                        # 💡 파일 첨부 명을 고유하게 식별하기 위해 파일 객체 이름을 가공합니다.
                         file = await attachment.to_file()
+                        file.filename = f"auth_{message.author.id}.png"
+                        
                         from zoneinfo import ZoneInfo
                         from datetime import datetime
                         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
                         
-                        # 예전 정상적이던 보라색 레이아웃 전송 구조
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n길드원이 맞다면 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
-                        admin_embed.set_image(url=f"attachment://{attachment.filename}")
+                        # 임베드 내부에 사진 파일 주소를 명확하게 링킹합니다.
+                        admin_embed.set_image(url=f"attachment://{file.filename}")
                         
                         # 유저 화면 실시간 접수 중 문구로 교체
                         if message.author.id in user_interactions:
@@ -260,7 +257,7 @@ async def on_message(message):
                                 )
                             except: pass
                         
-                        # 예전 완벽했던 방식대로 발송
+                        # 관리자방 전송
                         await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
                         await message.delete()
                         return
