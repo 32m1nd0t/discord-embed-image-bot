@@ -83,8 +83,7 @@ class AdminApprovalView(discord.ui.View):
             saved_interaction = user_interactions[self.applicant_id]
             try:
                 await saved_interaction.edit_original_response(
-                    content=f"🎉 {member.mention if member else ''}님, 축하합니다!\n"
-                            f"**{interaction.user.mention}(관리자)**님이 회원님의 인증을 확인하고 **[길드원]** 직책을 부여했습니다.\n"
+                    content=f"🎉 {member.mention if member else ''}님께 **[길드원]** 직책을 부여되었습니다.\n"
                             f"⏰ **인증 일시:** {time_str}\n\n"
                             f"📌 이제 서버의 모든 채널을 이용하실 수 있습니다. 공지사항을 다시 확인해 주세요! 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)",
                     embed=None,
@@ -94,9 +93,6 @@ class AdminApprovalView(discord.ui.View):
                 print(f"유저 에페메럴 창 원격 수정 실패: {e}")
             
             del user_interactions[self.applicant_id]
-
-        # 버튼을 누른 관리자 본인에게 성공 피드백 알림
-        await interaction.response.send_message(f"✅ 승인 처리가 완료되었습니다.", ephemeral=True)
 
 
 # 2단계: 손님 진입 후 에페메럴로 튀어나올 길드 인증 신청 버튼
@@ -233,29 +229,6 @@ async def on_message(message):
                         return
 
     await bot.process_commands(message)
-
-
-# 기존에 사용하시던 티켓 채널 감지 이벤트 (그대로 유지)
-@bot.event
-async def on_guild_channel_create(channel):
-    if isinstance(channel, discord.TextChannel) and channel.name.startswith("ticket-"):
-        embed1 = discord.Embed(
-            title="📸 인증 사진 업로드 안내",
-            description="티켓이 정상적으로 접수되었습니다.\n아래 안내에 따라 인증 사진을 올려주세요!\n",
-            color=0x3498db
-        )
-        embed1.add_field(
-            name="📌 업로드 방법", 
-            value="1. 채팅창 왼쪽의 `+` 버튼을 누릅니다.\n2. 촬영한 인증 사진을 첨부합니다.", 
-            inline=False
-        )
-        embed1.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
-
-        embed2 = discord.Embed(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
-        embed2.set_image(url="https://message.style/cdn/images/f625a312aa1c5e6cb63dc27b8faa1908c4a3a7abea3b12a3bcfec6619e9b6579.png")
-
-        await channel.send(embeds=[embed1, embed2])
-
 
 # 일반 유저가 명령어 입력 시 권한 부족 경고 에러 처리 이벤트
 @bot.event
