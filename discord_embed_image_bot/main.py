@@ -3,12 +3,12 @@ from discord.ext import commands
 from threading import Thread
 from flask import Flask
 import os
-import logging  # 🔒 도배 로그 방지를 위해 로깅 모듈 추가
+import logging
 
 # 1. Render 호환을 위한 가짜 웹 서버(Flask) 설정
 app = Flask('')
 
-# 🔒 UptimeRobot이 찌르는 무의미한 웹 접속 로그(Werkzeug) 숨기기
+# UptimeRobot이 찌르는 무의미한 웹 접속 로그 숨기기
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -30,8 +30,11 @@ def keep_alive():
 # 유저가 버튼을 누른 상호작용(토큰)을 잠시 보관하는 저장소
 user_interactions = {}
 
+# 🆕 [추가] 유저별로 관리자방에 생성된 '예비 알림 메시지'를 기억하는 저장소
+pending_admin_messages = {}
 
-# 🆕 관리자방 로그 밑에 달릴 [승인] 버튼 클래스
+
+# 관리자방 로그 밑에 달릴 [승인] 버튼 클래스
 class AdminApprovalView(discord.ui.View):
     def __init__(self, applicant_id: int):
         super().__init__(timeout=None)
@@ -62,7 +65,19 @@ class AdminApprovalView(discord.ui.View):
         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
         time_str = kst_now.strftime('%Y-%m-%d %H:%M:%S')
 
-        # 3. 🛡️ 관리자 채널의 로그 메시지 업데이트
+        # 3. 🆕 [핵심 추가] 이 유저의 "🔔 신규 길드 인증 요청" 예비 알림 메시지를 찾아서 삭제합니다.
+        if self.applicant_id in pending_admin_messages:
+            try:
+                # 저장해둔 메시지 객체를 가져와서 공중분해 시킵니다.
+                old_msg = pending_admin_messages[self.applicant_id]
+                await old_msg.delete()
+            except Exception as e:
+                print(f"예비 알림 메시지 삭제 실패 (이미 지워졌거나 권한 부족): {e}")
+            
+            # 처리가 끝났으므로 저장소에서 제거
+            del pending_admin_messages[self.applicant_id]
+
+        # 4. 관리자 채널의 로그 메시지 업데이트
         approved_embed = discord.Embed(
             title="🔒 인증 완료",
             description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
@@ -71,14 +86,12 @@ class AdminApprovalView(discord.ui.View):
                         f"👑 **부여된 직책:** [길드원]",
             color=0x2ecc71 # 완료를 뜻하는 초록색으로 변환
         )
-        
-        # 💡 [중복 사진 해결] 임베드 자체 이미지 영역은 None으로 밀어버려, 첨부 파일 이미지 1장만 깔끔하게 남깁니다.
-        approved_embed.set_image(url=None)
+        approved_embed.set_image(url=None) # 사진 중복 노출 방지
 
         # 관리자방 메시지 수정 (승인 완료 박스로 바꾸고 버튼은 제거)
         await interaction.message.edit(embed=approved_embed, view=None)
 
-        # 4. ⭐️ [핵심 교정] 유저가 켜두었던 에페메럴 창을 성공 메시지로 원격 수정합니다!
+        # 5. 동시에 유저가 보고 있던 에페메럴 가이드 창도 승인 완료 창으로 실시간 업데이트
         if self.applicant_id in user_interactions:
             saved_interaction = user_interactions[self.applicant_id]
             try:
@@ -90,9 +103,8 @@ class AdminApprovalView(discord.ui.View):
                     view=None
                 )
             except Exception as e:
-                print(f"유저 에페메럴 창 원격 수정 실패 (시간초과 등): {e}")
+                print(f"유저 에페메럴 창 원격 수정 실패: {e}")
             
-            # 메모리 반환
             del user_interactions[self.applicant_id]
 
         # 버튼을 누른 관리자에게 성공 피드백 알림
@@ -106,8 +118,20 @@ class GuestFollowUpView(discord.ui.View):
 
     @discord.ui.button(label="길드 인증 신청", style=discord.ButtonStyle.primary, custom_id="guild_auth_btn")
     async def guild_auth(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # 💡 유저가 버튼을 클릭한 순간의 상호작용 객체를 보관합니다.
         user_interactions[interaction.user.id] = interaction
+
+        admin_channel = discord.utils.get(interaction.guild.text_channels, name="인증채널-관리자")
+        
+        if admin_channel:
+            admin_embed = discord.Embed(
+                title="🔔 신규 길드 인증 요청",
+                description=f"{interaction.user.mention} 님이 길드 인증을 요청했습니다.\n"
+                            f"현재 유저가 사진 업로드를 진행 중입니다.",
+                color=0xe67e22
+            )
+            # 💡 [교정] 봇이 보낸 이 오렌지색 알림 메시지 자체를 변수에 담은 뒤, 저장소에 유저 ID와 함께 박아둡니다.
+            sent_msg = await admin_channel.send(embed=admin_embed)
+            pending_admin_messages[interaction.user.id] = sent_msg
         
         user_embed = discord.Embed(
             title="📸 길드 인증사진 업로드 안내",
@@ -124,7 +148,6 @@ class GuestFollowUpView(discord.ui.View):
         )
         user_embed.set_image(url="https://message.style/cdn/images/797cb342c135ad2f3a755c479532c55a2f20db4211c751c8b0b6ccbd63d24e00.png")
 
-        # 유저 화면에 에페메럴 가이드라인 전송
         await interaction.response.send_message(embed=user_embed, ephemeral=True)
 
 
@@ -208,8 +231,51 @@ async def on_message(message):
                         from datetime import datetime
                         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
                         
-                        # 💡 예비 알림 없이, 사진 로그창에 완벽한 정보와 승인 버튼을 일체형으로 빌드합니다.
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n"
-                                        f"**일시:** {kst_now.strftime('%Y
+                                        f"**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                                        f"사진을 확인하신 후 아래 **[승인]** 버튼을 눌러주세요.",
+                            color=0x9b59b6
+                        )
+                        admin_embed.set_image(url=f"attachment://{attachment.filename}")
+                        
+                        # 관리자방 전송 (버튼 포함)
+                        await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
+                        
+                        # 유저가 채널에 올린 원본 이미지는 즉시 파기
+                        await message.delete()
+                        return
+
+    await bot.process_commands(message)
+
+
+# 일반 유저가 명령어 입력 시 권한 부족 경고 에러 처리 이벤트
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send(f"❌ {ctx.author.mention}님, 이 명령어는 관리자만 사용할 수 있습니다.", delete_after=3)
+        await ctx.message.delete()
+
+
+# ------------------ [4. 관리자 명령어 구역] ------------------
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def 입장패널생성(ctx):
+    embed = discord.Embed(
+        title="⚔️ 서버 입장 안내",
+        description="방문 목적에 맞는 버튼을 눌러주세요.\n\n"
+                    "**• 버추얼로 입장:** [버추얼] 역할이 부여됩니다.\n"
+                    "**• 손님으로 입장:** 음성 채널만 이용 가능한 임시 [손님] 역할이 부여됩니다.",
+        color=0x2ecc71
+    )
+    await ctx.send(embed=embed, view=MainWelcomeView())
+    await ctx.message.delete()
+
+
+# ------------------ [5. 봇 구동부] ------------------
+keep_alive()
+
+token = os.environ.get("DISCORD_TOKEN")
+bot.run(token)
