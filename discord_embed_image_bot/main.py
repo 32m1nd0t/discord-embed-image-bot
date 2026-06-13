@@ -30,7 +30,7 @@ def keep_alive():
 # 유저가 버튼을 누른 상호작용(토큰)을 잠시 보관하는 저장소
 user_interactions = {}
 
-# 🆕 [추가] 유저별로 관리자방에 생성된 '예비 알림 메시지'를 기억하는 저장소
+# 유저별로 관리자방에 생성된 '예비 알림 메시지'를 기억하는 저장소
 pending_admin_messages = {}
 
 
@@ -65,33 +65,39 @@ class AdminApprovalView(discord.ui.View):
         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
         time_str = kst_now.strftime('%Y-%m-%d %H:%M:%S')
 
-        # 3. 🆕 [핵심 추가] 이 유저의 "🔔 신규 길드 인증 요청" 예비 알림 메시지를 찾아서 삭제합니다.
+        # 3. 이 유저의 "🔔 신규 길드 인증 요청" 예비 알림 메시지가 있다면 제거
         if self.applicant_id in pending_admin_messages:
             try:
-                # 저장해둔 메시지 객체를 가져와서 공중분해 시킵니다.
                 old_msg = pending_admin_messages[self.applicant_id]
                 await old_msg.delete()
             except Exception as e:
-                print(f"예비 알림 메시지 삭제 실패 (이미 지워졌거나 권한 부족): {e}")
-            
-            # 처리가 끝났으므로 저장소에서 제거
+                print(f"예비 알림 메시지 삭제 실패: {e}")
             del pending_admin_messages[self.applicant_id]
 
-        # 4. 관리자 채널의 로그 메시지 업데이트
+        # 4. ⭐️ [교정] 기존 보라색 임베드 창에서 이미지 URL을 그대로 계승합니다.
+        existing_img_url = None
+        if interaction.message.embeds and interaction.message.embeds[0].image:
+            existing_img_url = interaction.message.embeds[0].image.url
+
+        # 5. 🔒 관리자 채널의 로그 메시지 업데이트
         approved_embed = discord.Embed(
             title="🔒 인증 완료",
             description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
                         f"⚙️ **처리 관리자:** {interaction.user.mention}\n"
                         f"⏰ **인증 일시:** {time_str}\n"
                         f"👑 **부여된 직책:** [길드원]",
-            color=0x2ecc71 # 완료를 뜻하는 초록색으로 변환
+            color=0x2ecc71 # 완료를 뜻하는 초록색
         )
-        approved_embed.set_image(url=None) # 사진 중복 노출 방지
+        
+        # 💡 [핵심 교정] 임베드 내부 영역에 사진을 집어넣어 한 덩어리로 만듭니다!
+        if existing_img_url:
+            approved_embed.set_image(url=existing_img_url)
 
-        # 관리자방 메시지 수정 (승인 완료 박스로 바꾸고 버튼은 제거)
-        await interaction.message.edit(embed=approved_embed, view=None)
+        # 💡 [교정] 버튼을 누른 관리자 전용 '나만 보기 메시지'는 전송하지 않고, 
+        # interaction.response.edit_message를 활용해 로그 창 자체를 깔끔하게 다이렉트 업데이트합니다.
+        await interaction.response.edit_message(embed=approved_embed, view=None)
 
-        # 5. 동시에 유저가 보고 있던 에페메럴 가이드 창도 승인 완료 창으로 실시간 업데이트
+        # 6. 동시에 유저가 보고 있던 에페메럴 가이드 창도 승인 완료 창으로 실시간 업데이트
         if self.applicant_id in user_interactions:
             saved_interaction = user_interactions[self.applicant_id]
             try:
@@ -106,9 +112,6 @@ class AdminApprovalView(discord.ui.View):
                 print(f"유저 에페메럴 창 원격 수정 실패: {e}")
             
             del user_interactions[self.applicant_id]
-
-        # 버튼을 누른 관리자에게 성공 피드백 알림
-        await interaction.response.send_message(f"✅ 승인 처리가 완료되었습니다.", ephemeral=True)
 
 
 # 2단계: 손님 진입 후 에페메럴로 튀어나올 길드 인증 신청 버튼
@@ -129,7 +132,6 @@ class GuestFollowUpView(discord.ui.View):
                             f"현재 유저가 사진 업로드를 진행 중입니다.",
                 color=0xe67e22
             )
-            # 💡 [교정] 봇이 보낸 이 오렌지색 알림 메시지 자체를 변수에 담은 뒤, 저장소에 유저 ID와 함께 박아둡니다.
             sent_msg = await admin_channel.send(embed=admin_embed)
             pending_admin_messages[interaction.user.id] = sent_msg
         
@@ -240,10 +242,22 @@ async def on_message(message):
                         )
                         admin_embed.set_image(url=f"attachment://{attachment.filename}")
                         
+                        # ⭐️ [교정 핵심부] 유저가 올린 원본 메시지를 delete() 하기 전에 유저 에페메럴 창부터 먼저 가로채서 수정합니다!
+                        if message.author.id in user_interactions:
+                            saved_interaction = user_interactions[message.author.id]
+                            try:
+                                await saved_interaction.edit_original_response(
+                                    content="✅ **인증사진 접수 완료!**\n현재 관리자가 인증사진을 확인하고 있습니다. 잠시만 기다려주세요... ⏰",
+                                    embed=None,
+                                    view=None
+                                )
+                            except Exception as e:
+                                print(f"유저 대기 상태 에페메럴 업데이트 실패: {e}")
+                        
                         # 관리자방 전송 (버튼 포함)
                         await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
                         
-                        # 유저가 채널에 올린 원본 이미지는 즉시 파기
+                        # 유저가 채널에 올린 원본 이미지는 즉시 파기 (보안)
                         await message.delete()
                         return
 
