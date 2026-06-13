@@ -62,7 +62,7 @@ class AdminApprovalView(discord.ui.View):
         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
         time_str = kst_now.strftime('%Y-%m-%d %H:%M:%S')
 
-        # 3. ⭐️ [박제 로그] 관리자가 보는 로그 창을 "어떤 관리자가 승인했는지" 실시간으로 수정(Edit)
+        # 3. ⭐️ [교정] 관리자가 보는 로그 임베드 창을 수정합니다.
         approved_embed = discord.Embed(
             title="🔒 인증 완료",
             description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
@@ -71,11 +71,12 @@ class AdminApprovalView(discord.ui.View):
                         f"👑 **부여된 직책:** [길드원]",
             color=0x2ecc71 # 완료를 뜻하는 초록색으로 변환
         )
-        # 유저가 제출했던 인증샷 이미지 깨지지 않게 그대로 유지
-        if interaction.message.embeds and interaction.message.embeds[0].image:
-            approved_embed.set_image(url=interaction.message.embeds[0].image.url)
+        
+        # 💡 [핵심 핵심] 임베드 내부의 이미지는 세팅하지 않고 None 처리하여 날려버립니다.
+        # 이렇게 하면 기존에 첨부되어 있던 원본 사진 파일 1장만 깔끔하게 박스 밑에 남습니다.
+        approved_embed.set_image(url=None)
 
-        # 관리자 채널의 메시지를 업데이트 (버튼은 처리가 끝났으므로 소멸)
+        # 관리자 채널의 메시지를 업데이트 (버튼 소멸)
         await interaction.message.edit(embed=approved_embed, view=None)
 
         # 4. 동시에 유저가 보고 있던 에페메럴 가이드 창도 승인 완료 창으로 실시간 업데이트
