@@ -214,6 +214,7 @@ async def on_ready():
     bot.add_view(MainWelcomeView())
     bot.add_view(GuestFollowUpView())
 
+# 사진 수집 및 관리자방 정갈한 빌드 처리 구역
 @bot.event
 async def on_message(message):
     if message.author.bot: return
@@ -224,20 +225,25 @@ async def on_message(message):
                 if attachment.content_type and attachment.content_type.startswith("image/"):
                     admin_channel = discord.utils.get(message.guild.text_channels, name="인증채널-관리자")
                     if admin_channel:
-                        # 사진 데이터 백업
+                        # 1. 사진 파일 다운로드 백업
                         file = await attachment.to_file()
+                        
                         from zoneinfo import ZoneInfo
                         from datetime import datetime
                         kst_now = datetime.now(ZoneInfo("Asia/Seoul"))
                         
+                        # 2. 보라색 로그 임베드 생성
                         admin_embed = discord.Embed(
                             title="🖼️ 인증사진 로그 접수",
                             description=f"**신청자:** {message.author.mention}\n**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n사진 확인 후 아래 **[승인]** 버튼을 눌러주세요.",
                             color=0x9b59b6
                         )
-                        admin_embed.set_image(url=f"attachment://{attachment.filename}")
                         
-                        # 유저 대기 상태 업데이트
+                        # 💡 [핵심 교정] 디스코드 가상 경로 명시는 제거하고, 오직 file로만 이미지를 쏘아 올립니다.
+                        # 이렇게 해야 최초 접수 시 위아래 중복 없이 박스 안에 사진이 딱 1장만 예쁘게 안착합니다.
+                        # admin_embed.set_image 구역을 과감히 삭제했습니다.
+                        
+                        # 3. 유저 대기 상태 에페메럴 업데이트
                         if message.author.id in user_interactions:
                             saved_interaction = user_interactions[message.author.id]
                             try:
@@ -247,9 +253,8 @@ async def on_message(message):
                                 )
                             except: pass
                         
-                        # 관리자방 전송
+                        # 4. 관리자 채널로 전송 및 원본 메시지 파기
                         await admin_channel.send(embed=admin_embed, file=file, view=AdminApprovalView(message.author.id))
-                        # 원본 삭제
                         await message.delete()
                         return
     await bot.process_commands(message)
