@@ -75,11 +75,14 @@ class AdminApprovalView(discord.ui.View):
                 pass
             del pending_admin_messages[self.applicant_id]
 
-        # 5. 기존 메시지에 첨부되어 있던 원본 사진 파일 연동 수정
-        filename = "auth_image.png"
+        # 5. ⭐️ [하나의 메시지로 통합하는 핵심부]
+        # 메시지를 새로 전송하는 분리 방식이 아니라, 기존 보라색 메시지 한 통을 그대로 수정(edit)합니다.
+        # 이때 기존에 꽂혀있던 첨부파일 이름을 추적하여 새 초록색 임베드 박스 '내부(set_image)'로 경로를 강제 매칭합니다.
+        filename = f"auth_{self.applicant_id}.png"
         if interaction.message.attachments:
             filename = interaction.message.attachments[0].filename
 
+        # 초록색 인증 완료 박스 빌드
         approved_embed = discord.Embed(
             title="🔒 인증 완료",
             description=f"{member.mention if member else '퇴장한 유저'} 님의 인증이 성공적으로 완료되었습니다.\n\n"
@@ -88,9 +91,11 @@ class AdminApprovalView(discord.ui.View):
                         f"👑 **부여된 직책:** [길드원]",
             color=0x2ecc71
         )
+        
+        # 💡 사진 주소를 임베드 내부 이미지 영역에 완벽하게 박아 넣어, 박스 밖으로 튀어나가지 않게 가둡니다.
         approved_embed.set_image(url=f"attachment://{filename}")
 
-        # 관리자 채널의 메시지를 실시간 수정
+        # 💡 기존 메시지 본체 하나만 그대로 업데이트하여 버튼을 없애고 초록 박스 일체형으로 변환합니다.
         await interaction.response.edit_message(embed=approved_embed, view=None)
 
         # 6. 유저방 청소: "임시 [손님] 역할이 부여되었습니다!..." 최초 에페메럴 가이드 창 삭제
@@ -178,10 +183,8 @@ class MainWelcomeView(discord.ui.View):
 
     @discord.ui.button(label="버추얼로 입장", style=discord.ButtonStyle.success, custom_id="welcome_vip_btn")
     async def vip_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # ⭐️ [교정] 3초 만료 튕김(404)을 원천 차단하기 위해 시작하자마자 디스코드에 생각할 시간 연장 요청
         await interaction.response.defer(ephemeral=True)
 
-        # 중복 체크
         if discord.utils.get(interaction.user.roles, name="버추얼"):
             await interaction.followup.send(content="이미 **[버추얼]** 역할이 부여되었습니다!", ephemeral=True)
             return
@@ -201,8 +204,6 @@ class MainWelcomeView(discord.ui.View):
                 )
                 admin_embed.set_footer(text=f"일시: {kst_now.strftime('%Y-%m-%d %H:%M:%S')}")
                 await admin_channel.send(embed=admin_embed)
-            
-            # ⭐️ [교정] 시간을 벌어둔 상태이므로 send_message가 아닌 followup.send로 결과 노출
             await interaction.followup.send(content="✨ 버추얼 인증이 완료되었습니다! 공지사항을 필독해주세요. 👉 [공지사항 확인하기](https://discord.com/channels/1497469875243847680/1501555795937202187/1511718041333927940)", ephemeral=True)
         else:
             await interaction.followup.send(content="❌ '버추얼' 역할을 찾을 수 없습니다.", ephemeral=True)
@@ -233,6 +234,7 @@ async def on_message(message):
                     admin_channel = discord.utils.get(message.guild.text_channels, name="인증채널-관리자")
                     if admin_channel:
                         file = await attachment.to_file()
+                        # 유저별로 고유한 파일명 매칭
                         file.filename = f"auth_{message.author.id}.png"
                         
                         from zoneinfo import ZoneInfo
@@ -244,6 +246,7 @@ async def on_message(message):
                             description=f"**신청자:** {message.author.mention}\n**일시:** {kst_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n길드원이 맞다면 **[길드원]** 역할을 부여해주세요.",
                             color=0x9b59b6
                         )
+                        # 사진 주소를 임베드 본체 내부에 결합
                         admin_embed.set_image(url=f"attachment://{file.filename}")
                         
                         if message.author.id in user_interactions:
